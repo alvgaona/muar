@@ -1,11 +1,9 @@
 # MUAR
 
-This is a repository for the courses offered by Escuela Técnica Superior de Ingeniería Industrial
-at Universidad Politénica de Madrid.
-In particular, this repository looks to provide implementations for several courses within Master
-de Automática y Robótica.
+Este repositorio contiene implemetaciones de cursos ofrecridos por la Escuela Técnica Superior de Ingeniería Industrial
+de la Universidad Politénica de Madrid, en el Master de Automática y Robótica.
 
-## Table of Contents
+## Tabla de Contenidos
 
 - [Matemáticas para Automática y Robótica](./53001578)
 - [Visión por Computador]()
