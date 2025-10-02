@@ -13,7 +13,7 @@ function [t,y] = rk4(f, tspan, y0, h)
     %       t      - Time vector
     %       y      - Solution matrix where each row is the solution at time t(i)
     %
-    %   The function calls ENTRADA(t) to compute the input u at each time step.
+    %   The function calls entrada(t) to compute the input u at each time step.
     %
     %   Example:
     %       f = @(x,u) -2*x + u;
