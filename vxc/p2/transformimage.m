@@ -28,10 +28,10 @@ function out=transformimage(img, T)
             % and y spans through the rows of the image
             dest_point = [j; i; 1];
 
-            source_point = inv(T) * dest_point;
+            source_point = T \ dest_point;
 
-            source_j = round(source_point(1));
-            source_i = round(source_point(2));
+            source_j = round(source_point(1) / source_point(3));
+            source_i = round(source_point(2) / source_point(3));
 
             % Check if new coordinates are within image bounds
             if source_i >= 1 && source_i <= rows && source_j >= 1 && source_j <= cols

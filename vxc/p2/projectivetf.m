@@ -18,11 +18,4 @@ function out = projectivetf(img, h00, h01, h02, h10, h11, h12, h20, h21)
     %       [h10 h11 h12]
     %       [h20 h21  1 ]
 
-    T = [
-        h00 h01 h02;
-        h10 h11 h12;
-        h20 h21 1
-    ];
-
-    out = transformimage(img, T);
 end
