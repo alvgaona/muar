@@ -3,12 +3,12 @@ clear;
 
 %% Descripción
 
-% El simulador es levemente distinto al implementado en clase ya que me 
+% El simulador es levemente distinto al implementado en clase ya que me
 % parece mejor no utilizar variables globales,
-% y tratar de tener una mejor estructura para cada método. 
+% y tratar de tener una mejor estructura para cada método.
 % Con una interfaz similar a la que MATLAB muestra con ODE45.
 %
-% Mantenemos el sistema dada por la función `f`, el estado inicial, 
+% Mantenemos el sistema dada por la función `f`, el estado inicial,
 % el paso, y trabajamos con un vector de tiempo calculado por cada método
 % al utilizar la variable `tspan`.
 

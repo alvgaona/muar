@@ -33,21 +33,23 @@ function [t,y] = adams_moulton(f, tspan, y0, h)
 
     % I'm working with Euler Trapezoidal for the first 4 points
     % as there are no previous values at these timesteps.
-    [~, y(1:3, :)] = euler_trapezoidal(f, [t(1), t(3)], y(1,:)', h);
+    [~, y(1:4, :)] = euler_trapezoidal(f, [t(1), t(4)], y(1,:)', h);
 
-    for i = 3:n-1
+    for i = 4:n-1
         u1 = entrada(t(i+1));
         u2 = entrada(t(i));
         u3 = entrada(t(i-1));
         u4 = entrada(t(i-2));
 
-        y_pred = y(i,:) + h * f(y(i,:), u1);
-
-        f1 = f(y_pred, u1);
         f2 = f(y(i,:), u2);
         f3 = f(y(i-1,:), u3);
         f4 = f(y(i-2,:), u4);
+        f5 = f(y(i-3,:), entrada(t(i-3)));
 
+        % Predictor: instead of simpler methods, use Adams-Bashforth
+        y_pred = y(i,:) + h/24 * (55*f2 - 59*f3 + 37*f4 - 9*f5);
+
+        f1 = f(y_pred, u1);
         y(i+1,:) = y(i,:) + h/24 * (9*f1 + 19*f2 - 5*f3 + f4);
     end
 end
