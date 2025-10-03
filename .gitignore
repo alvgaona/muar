@@ -1,6 +1,6 @@
-.pixi/
+.pixi/*
+!.pixi/config.toml
 slprj/
-
 
 .DS_Store
 
