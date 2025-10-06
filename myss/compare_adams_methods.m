@@ -40,10 +40,8 @@ for i = 1:length(h_values)
     legend('Interpreter', 'latex', 'Location', 'best', 'FontSize', 14);
 end
 
-sgtitle(
-    'Adams-Bashforth vs Adams-Moulton: $\dot{y} = -y + u$, $y(0) = 0$', ...
-    'Interpreter', 'latex', 'FontSize', 16, 'FontWeight', 'bold'
-);
+sgtitle('Adams-Bashforth vs Adams-Moulton: $\dot{y} = -y + u$, $y(0) = 0$', ...
+    'Interpreter', 'latex', 'FontSize', 16, 'FontWeight', 'bold');
 
 figure(2);
 set(gcf, 'Position', [150, 150, 1400, 900]);
@@ -61,7 +59,5 @@ for i = 1:length(h_values)
     legend('Interpreter', 'latex', 'Location', 'best', 'FontSize', 14);
 end
 
-sgtitle(
-    'Absolute Error vs Analytical Solution', ...
-    'Interpreter', 'latex', 'FontSize', 16, 'FontWeight', 'bold'
-);
+sgtitle('Absolute Error vs Analytical Solution', ...
+    'Interpreter', 'latex', 'FontSize', 16, 'FontWeight', 'bold');
