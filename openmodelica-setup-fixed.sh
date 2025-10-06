@@ -49,9 +49,34 @@ openmodelica-gui() {
     # Kill any existing socat process on port 6000
     lsof -ti:6000 2>/dev/null | xargs kill -9 2>/dev/null
 
+    # Detect the correct X11 socket
+    local X11_SOCKET=""
+    if [[ -e "/tmp/.X11-unix/X0" ]] && lsof /tmp/.X11-unix/X0 >/dev/null 2>&1; then
+        X11_SOCKET="/tmp/.X11-unix/X0"
+        echo "Using X11 socket: X0"
+    elif [[ -e "/tmp/.X11-unix/X1" ]] && lsof /tmp/.X11-unix/X1 >/dev/null 2>&1; then
+        X11_SOCKET="/tmp/.X11-unix/X1"
+        echo "Using X11 socket: X1"
+    else
+        # Try to find any active X11 socket
+        for socket in /tmp/.X11-unix/X*; do
+            if [[ -e "$socket" ]] && lsof "$socket" >/dev/null 2>&1; then
+                X11_SOCKET="$socket"
+                echo "Using X11 socket: $(basename $socket)"
+                break
+            fi
+        done
+    fi
+    
+    if [[ -z "$X11_SOCKET" ]]; then
+        echo "Error: No active X11 socket found. Please ensure XQuartz is properly running."
+        cleanup_x11
+        return 1
+    fi
+
     # Start socat to forward X11 connections from TCP to Unix socket
     echo "Starting X11 forwarding bridge..."
-    socat TCP-LISTEN:6000,reuseaddr,fork UNIX-CLIENT:/tmp/.X11-unix/X0 &
+    socat TCP-LISTEN:6000,reuseaddr,fork UNIX-CLIENT:"$X11_SOCKET" &
     local SOCAT_PID=$!
     sleep 1
     
