@@ -8,3 +8,5 @@ version = "0.1.0"
 
 [dependencies]
 tsplib95 = ">=0.7.1,<0.8"
+numpy = ">=2.3.3,<3"
+scipy = ">=1.16.2,<2"
