@@ -334,8 +334,14 @@ def local_search(graph: dict[int, set[int]], initial_clique: set[int]) -> set[in
 
 def ostergard_max_clique(graph: dict[int, set[int]]) -> set[int]:
     """
-    Ostergard's algorithm - efficient branch-and-bound with advanced pruning.
-    Simplified version with timeout for large graphs.
+    Östergård's algorithm for maximum clique using vertex coloring bounds.
+    
+    This is the real Östergård algorithm as described in:
+    "A fast algorithm for the maximum clique problem" by Patric R.J. Östergård (2002)
+    
+    The algorithm uses graph coloring to compute upper bounds for pruning the search tree.
+    It colors vertices greedily and uses the number of colors as an upper bound on the 
+    clique size in the remaining subgraph.
 
     Args:
         graph: Dictionary representing adjacency list
@@ -344,104 +350,148 @@ def ostergard_max_clique(graph: dict[int, set[int]]) -> set[int]:
         Maximum clique
     """
     import time
-    
+
     start_time = time.time()
-    timeout = 5  # 5 seconds timeout for large graphs
-    
+    timeout = 30  # 30 seconds timeout for large graphs
+
     class SearchState:
         def __init__(self):
             self.best_clique = []
             self.best_size = 0
             self.nodes_explored = 0
-            
+            self.pruned_by_coloring = 0
+
     state = SearchState()
-    
-    def greedy_coloring_bound(nodes: set[int]) -> int:
-        """Get upper bound via greedy coloring (chromatic number)."""
-        if not nodes:
-            return 0
+
+    def greedy_coloring(vertices: list[int], subgraph_adj: dict[int, set[int]]) -> list[set[int]]:
+        """
+        Greedy graph coloring for the induced subgraph.
+        Returns a list of color classes (independent sets).
+        """
+        if not vertices:
+            return []
         
-        # Create subgraph induced by nodes
-        subgraph = {n: graph[n] & nodes for n in nodes}
+        color_classes = []
+        uncolored = set(vertices)
         
-        # Greedy coloring
-        colors = {}
-        for node in nodes:
-            used_colors = {colors[n] for n in subgraph[node] if n in colors}
-            color = 0
-            while color in used_colors:
-                color += 1
-            colors[node] = color
+        while uncolored:
+            # Start a new color class
+            color_class = set()
+            candidates = set(uncolored)
             
-        return max(colors.values()) + 1 if colors else 0
-    
-    def search(candidates: set[int], current_clique: list[int]):
-        """Recursive search with pruning."""
+            while candidates:
+                # Pick vertex with minimum degree in remaining candidates
+                v = min(candidates, key=lambda x: len(subgraph_adj.get(x, set()) & candidates))
+                color_class.add(v)
+                uncolored.remove(v)
+                
+                # Remove v and its neighbors from candidates
+                candidates.discard(v)
+                candidates -= subgraph_adj.get(v, set())
+            
+            color_classes.append(color_class)
+        
+        return color_classes
+
+    def compute_upper_bound(candidates: list[int], current_size: int) -> int:
+        """
+        Compute upper bound using vertex coloring.
+        The chromatic number of the complement graph is an upper bound for the clique.
+        """
+        if not candidates:
+            return current_size
+        
+        # Build induced subgraph adjacency for coloring
+        subgraph_adj = {}
+        for v in candidates:
+            subgraph_adj[v] = graph[v] & set(candidates)
+        
+        # Apply greedy coloring
+        color_classes = greedy_coloring(candidates, subgraph_adj)
+        
+        # The number of colors is an upper bound for the clique size in this subgraph
+        return current_size + len(color_classes)
+
+    def search(candidates: list[int], current_clique: list[int]):
+        """Recursive search with coloring-based pruning."""
         # Check timeout
         if time.time() - start_time > timeout:
             return
-            
+
         state.nodes_explored += 1
-        
+
         # Update best if current is better
         if len(current_clique) > state.best_size:
             state.best_clique = current_clique[:]
             state.best_size = len(current_clique)
-        
+
         if not candidates:
             return
+
+        # Compute upper bound using vertex coloring
+        upper_bound = compute_upper_bound(candidates, len(current_clique))
         
-        # Pruning: can't improve
-        if len(current_clique) + len(candidates) <= state.best_size:
+        # Pruning: if upper bound can't improve best, stop
+        if upper_bound <= state.best_size:
+            state.pruned_by_coloring += 1
             return
+
+        # Re-order candidates by color classes for better pruning
+        # Build induced subgraph for ordering
+        subgraph_adj = {}
+        for v in candidates:
+            subgraph_adj[v] = graph[v] & set(candidates)
         
-        # Order candidates by degree in subgraph for better branching
-        candidate_list = list(candidates)
-        candidate_list.sort(key=lambda n: len(graph[n] & candidates), reverse=True)
+        # Get color classes and process vertices color class by color class
+        color_classes = greedy_coloring(candidates, subgraph_adj)
         
-        # Process candidates
-        for i, v in enumerate(candidate_list):
-            # Pruning: remaining candidates can't improve
-            if len(current_clique) + len(candidate_list) - i <= state.best_size:
-                break
-                
-            # Build new candidate set: must be neighbors of v AND all nodes in current_clique
-            # Only consider candidates that haven't been processed yet
-            new_candidates = set()
-            remaining = candidate_list[i+1:]  # Only unprocessed nodes
-            
-            for u in remaining:
-                # u must be connected to v
-                if u not in graph[v]:
-                    continue
-                # u must be connected to all nodes in current_clique
-                if all(u in graph[node] for node in current_clique):
-                    new_candidates.add(u)
-            
+        # Flatten color classes while preserving the ordering
+        # (vertices in the same color class can't be in the same clique)
+        ordered_candidates = []
+        for color_class in color_classes:
+            # Within each color class, order by degree
+            ordered_candidates.extend(
+                sorted(color_class, key=lambda x: len(graph[x] & set(candidates)), reverse=True)
+            )
+        
+        # Process candidates with improved ordering
+        for i, v in enumerate(ordered_candidates):
+            # Recompute bound for remaining candidates
+            remaining = ordered_candidates[i + 1:]
+            if remaining:
+                remaining_bound = compute_upper_bound(remaining, len(current_clique) + 1)
+                if remaining_bound <= state.best_size:
+                    # Can't improve even if we include v and find best in remaining
+                    break
+
+            # Build new candidate set: neighbors of v that come after v in ordering
+            new_candidates = []
+            for u in ordered_candidates[i + 1:]:
+                # u must be connected to v and all nodes in current_clique
+                if u in graph[v] and all(u in graph[node] for node in current_clique):
+                    new_candidates.append(u)
+
             # Recurse with v added to clique
             search(new_candidates, current_clique + [v])
-    
-    # Get initial bound using greedy
+
+    # Get initial bound using greedy heuristic
     greedy_result = greedy_max_clique(graph)
     state.best_clique = list(greedy_result)
     state.best_size = len(greedy_result)
+
+    # Start with all vertices as candidates
+    all_vertices = list(graph.keys())
     
-    # Order nodes by degree for better pruning
-    all_nodes = set(graph.keys())
+    # Initial ordering by degree (vertices with higher degree first)
+    all_vertices.sort(key=lambda n: len(graph[n]), reverse=True)
+
+    search(all_vertices, [])
     
-    # Run search with timeout
-    try:
-        search(all_nodes, [])
-    except:
-        pass  # Timeout or other issue
-    
-    # If search didn't improve, try GRASP as fallback for better result
-    if state.nodes_explored > 10000 and state.best_size == len(greedy_result):
-        # Search exhausted without improvement, try a quick GRASP
-        grasp_result = grasp_max_clique(graph, iterations=10, alpha=0.3)
-        if len(grasp_result) > state.best_size:
-            return grasp_result
-    
+    # Print statistics if we found something
+    if state.nodes_explored > 0:
+        print(f"  Nodes explored: {state.nodes_explored}")
+        print(f"  Pruned by coloring: {state.pruned_by_coloring}")
+
     return set(state.best_clique) if state.best_clique else greedy_result
 
 
@@ -494,7 +544,10 @@ def main():
     print("Graph loaded:")
     # Try to extract problem name from filename
     import os
-    problem_name = os.path.basename(filename).replace('.clq.txt', '').replace('.clq', '')
+
+    problem_name = (
+        os.path.basename(filename).replace(".clq.txt", "").replace(".clq", "")
+    )
     print(f"  Name: {problem_name}")
     print(f"  Type: DIMACS clique instance")
     print(f"  Number of vertices: {len(graph)}")
@@ -504,9 +557,11 @@ def main():
     edge_density = num_edges / max_possible_edges if max_possible_edges > 0 else 0
     print(f"  Edge density: {edge_density:.3f}")
     print(f"  Graph complement density: {1 - edge_density:.3f}")
-    
+
     # Calculate average degree
-    avg_degree = sum(len(neighbors) for neighbors in graph.values()) / len(graph) if graph else 0
+    avg_degree = (
+        sum(len(neighbors) for neighbors in graph.values()) / len(graph) if graph else 0
+    )
     print(f"  Average degree: {avg_degree:.1f}")
     print()
 
@@ -552,9 +607,10 @@ def main():
 
     # Algorithm 3: Ostergard's Algorithm
     print("=" * 80)
-    print("Algorithm 3: OSTERGARD'S ALGORITHM")
+    print("Algorithm 3: ÖSTERGÅRD'S ALGORITHM")
     print("=" * 80)
-    print("Description: Advanced branch-and-bound with vertex coloring bounds")
+    print("Description: Branch-and-bound with vertex coloring upper bounds")
+    print("             Uses greedy graph coloring for pruning the search tree")
     print()
     start_time = time.time()
     try:
@@ -653,7 +709,7 @@ def main():
     print("=" * 80)
     print(f"{'Algorithm':<35} {'Clique Size':<12} {'Time (s)':<12} {'Type':<15}")
     print("-" * 80)
-    
+
     for name, size, time_taken, algo_type in results:
         size_str = str(size) if size != "N/A" else "N/A"
         time_str = (
@@ -678,13 +734,17 @@ def main():
         fastest_exact = min(exact_results, key=lambda x: x[2])
         print(f"🏆 Maximum clique size: {best_exact[1]} (by {best_exact[0]})")
         print(f"⏱️  Fastest exact: {fastest_exact[0]} ({fastest_exact[2]:.4f}s)")
-        
+
         # Show heuristic quality
         if heuristic_results:
             print()
             print("📊 Heuristic quality vs optimal:")
             for name, size, _ in heuristic_results:
-                gap = ((best_exact[1] - size) / best_exact[1] * 100) if best_exact[1] > 0 else 0
+                gap = (
+                    ((best_exact[1] - size) / best_exact[1] * 100)
+                    if best_exact[1] > 0
+                    else 0
+                )
                 accuracy = (size / best_exact[1] * 100) if best_exact[1] > 0 else 0
                 print(f"   {name}: size {size} ({accuracy:.1f}% of optimal)")
     elif heuristic_results:
@@ -693,7 +753,7 @@ def main():
         print(f"🏆 Best heuristic: size {best_heuristic[1]} (by {best_heuristic[0]})")
         print(f"⏱️  Fastest: {fastest_heuristic[0]} ({fastest_heuristic[2]:.4f}s)")
         print("⚠️  No exact algorithm completed - results may not be optimal")
-    
+
     # Known benchmark results (if available)
     known_cliques = {
         "keller5": 27,  # Known maximum clique size
@@ -701,10 +761,13 @@ def main():
         "p_hat300-2": 25,
         "test20": None,  # Unknown for test file
     }
-    
+
     import os
-    problem_name = os.path.basename(filename).replace('.clq.txt', '').replace('.clq', '')
-    
+
+    problem_name = (
+        os.path.basename(filename).replace(".clq.txt", "").replace(".clq", "")
+    )
+
     if problem_name in known_cliques and known_cliques[problem_name] is not None:
         print()
         print("=" * 80)
@@ -713,18 +776,18 @@ def main():
         optimal = known_cliques[problem_name]
         print(f"🎯 Known maximum clique for {problem_name}: {optimal}")
         print()
-        
-        all_results = [
-            (n, s, t, at) for n, s, t, at in results if s != "N/A"
-        ]
+
+        all_results = [(n, s, t, at) for n, s, t, at in results if s != "N/A"]
         if all_results:
             print("Algorithm Performance vs Known Optimal:")
             print("-" * 60)
             for name, size, time_taken, algo_type in all_results:
                 accuracy = (size / optimal * 100) if optimal > 0 else 0
-                status = "OPTIMAL!" if size == optimal else f"{accuracy:.1f}% of optimal"
+                status = (
+                    "OPTIMAL!" if size == optimal else f"{accuracy:.1f}% of optimal"
+                )
                 print(f"{name:<35} {size:>4}  {status:>20}")
-    
+
     print()
     print("=" * 80)
     print("ALGORITHM CHARACTERISTICS")
@@ -742,11 +805,12 @@ def main():
     print("   Quality: Good heuristic (typically 70-95% of optimal)")
     print("   Use:     Better quality than greedy, still fast")
     print()
-    print("🎯 Ostergard's Algorithm:")
-    print("   Time:    O(2ⁿ) worst case, much better in practice")
-    print("   Space:   O(n²) - moderate")
+    print("🎯 Östergård's Algorithm:")
+    print("   Time:    O(2ⁿ) worst case, much better with coloring bounds")
+    print("   Space:   O(n²) - moderate (for coloring computation)")
     print("   Quality: Guaranteed optimal solution")
-    print("   Use:     Best exact algorithm for medium graphs")
+    print("   Use:     Excellent for graphs with good coloring bounds")
+    print("   Note:    Uses vertex coloring to prune search space effectively")
     print()
     print("📦 Bron-Kerbosch (Basic):")
     print("   Time:    O(3^(n/3)) - exponential")
