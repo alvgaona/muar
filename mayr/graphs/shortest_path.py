@@ -100,7 +100,7 @@ def reconstruct_path(
 
 def main():
     # Load the TSP file
-    problem = tsplib95.load("./data/pcb442.tsp")
+    problem = tsplib95.load("./data/lin318.tsp")
 
     print(f"Problem: {problem.name}")
     print(f"Type: {problem.type}")
